@@ -1,0 +1,99 @@
+import requests
+import json
+from datetime import datetime
+from core.plugin import BasePlugin, logger, register_tool
+from core.chat.message_utils import KiraMessageBatchEvent
+
+
+class AinailiHotNewsPlugin(BasePlugin):
+    def __init__(self, ctx, cfg: dict):
+        super().__init__(ctx, cfg)
+        self.max_items = cfg.get("max_items", 15)
+        self.enable_auto_push = cfg.get("enable_auto_push", False)
+        self.push_time = cfg.get("push_time", "08:00")
+
+    async def initialize(self):
+        logger.info("爱奈丽热搜简报插件已加载，今日热点早知道~")
+        if self.enable_auto_push:
+            logger.info(f"自动推送已开启，每天早上{self.push_time}推送热搜简报")
+
+    async def terminate(self):
+        logger.info("爱奈丽热搜简报插件已卸载，明天见~")
+
+    def _fetch_baidu_hot(self):
+        """从百度热搜API获取实时热点"""
+        url = "https://top.baidu.com/api/board?tab=realtime"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            data = resp.json()
+            cards = data.get("data", {}).get("cards", [])
+            if not cards:
+                return []
+            items = cards[0].get("content", [])
+            results = []
+            for item in items:
+                results.append({
+                    "word": item.get("word", ""),
+                    "desc": item.get("desc", ""),
+                    "hotScore": item.get("hotScore", "0"),
+                    "hotTag": item.get("hotTag", "0"),
+                    "url": item.get("url", "")
+                })
+            return results
+        except Exception as e:
+            logger.error(f"获取百度热搜失败: {e}")
+            return []
+
+    def _format_brief(self, items, source="百度"):
+        """格式化热搜简报"""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        brief = f"🔥 爱奈丽热搜简报 — {now}\n"
+        brief += f"📡 数据来源：{source}热搜\n"
+        brief += "━" * 30 + "\n\n"
+
+        for i, item in enumerate(items[:self.max_items], 1):
+            word = item["word"]
+            hot_score = item.get("hotScore", "0")
+            try:
+                score_int = int(hot_score)
+                if score_int >= 10000:
+                    score_str = f"{score_int // 10000}万"
+                else:
+                    score_str = str(score_int)
+            except:
+                score_str = hot_score
+
+            brief += f"{i}. {word}\n"
+            brief += f"   热度 {score_str}\n"
+
+            desc = item.get("desc", "")
+            if desc and len(desc) > 5:
+                if len(desc) > 80:
+                    desc = desc[:80] + "..."
+                brief += f"   {desc}\n"
+            brief += "\n"
+
+        brief += "━" * 30 + "\n"
+        brief += "💡 发送「刷新热搜」获取最新消息\n"
+        brief += "—— 爱奈丽 · 你的智能热点助手 💕"
+        return brief
+
+    @register_tool(
+        name="ainali_hotnews",
+        description="获取当前全网热点新闻简报！自动从百度热搜抓取实时热点排行，返回今日最热新闻列表（含热度指数和简要描述）。适合每天早上查看今天发生了什么。无需参数，直接调用即可。",
+        params={
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    )
+    async def ainali_hotnews(self, event: KiraMessageBatchEvent) -> str:
+        """获取热搜简报"""
+        items = self._fetch_baidu_hot()
+        if not items:
+            return "😅 暂时获取不到热搜数据，可能是网络出了点小问题，过会儿再试试？"
+
+        return self._format_brief(items, "百度")
