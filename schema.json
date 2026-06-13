@@ -1,0 +1,21 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "max_items": {
+            "type": "integer",
+            "default": 15,
+            "description": "每次显示的热搜条数"
+        },
+        "enable_auto_push": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否开启每天早上自动推送"
+        },
+        "push_time": {
+            "type": "string",
+            "default": "08:00",
+            "description": "自动推送时间（格式 HH:MM）"
+        }
+    }
+}
