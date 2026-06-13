@@ -1,9 +1,10 @@
 {
-    "name": "ainali_hotnews",
-    "version": "1.0.0",
-    "description": "🔥 爱奈丽热搜简报 - 实时全网热点新闻推送",
-    "author": "爱奈丽",
-    "license": "MIT",
-    "entry": "main.py",
-    "class_name": "AinailiHotNewsPlugin"
+  "name": "ainali_hotnews",
+  "version": "1.0.0",
+  "description": "🔥 爱奈丽热搜简报 - 实时全网热点新闻推送",
+  "author": "爱奈丽",
+  "license": "MIT",
+  "entry": "main.py",
+  "class_name": "AinailiHotNewsPlugin",
+  "repo": "https://github.com/AinaLife-ai/KiraAI_hotnews_plugin"
 }
