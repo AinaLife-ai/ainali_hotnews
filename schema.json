@@ -1,21 +1,20 @@
 {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "object",
-    "properties": {
-        "max_items": {
-            "type": "integer",
-            "default": 15,
-            "description": "每次显示的热搜条数"
-        },
-        "enable_auto_push": {
-            "type": "boolean",
-            "default": false,
-            "description": "是否开启每天早上自动推送"
-        },
-        "push_time": {
-            "type": "string",
-            "default": "08:00",
-            "description": "自动推送时间（格式 HH:MM）"
-        }
-    }
+  "max_items": {
+    "name": "显示条数",
+    "type": "integer",
+    "default": 15,
+    "hint": "每次显示的热搜条数（1-30）"
+  },
+  "enable_auto_push": {
+    "name": "自动推送",
+    "type": "switch",
+    "default": false,
+    "hint": "是否每天早上自动推送热搜简报"
+  },
+  "push_time": {
+    "name": "推送时间",
+    "type": "string",
+    "default": "08:00",
+    "hint": "自动推送时间（格式 HH:MM）"
+  }
 }
