@@ -24,7 +24,7 @@ class AinailiHotNewsPlugin(BasePlugin):
         logger.info("爱奈丽热搜简报插件已加载，今日热点早知道~")
         if self.enable_auto_push and self.push_targets:
             logger.info(
-                f"自动推送已开启，每天早上{self.push_time}推送热搜简报至 {len(self.push_targets)} 个目标会话"
+                f"自动推送已开启，每天{self.push_time}推送热搜简报至 {len(self.push_targets)} 个目标会话"
             )
             self._push_task = asyncio.create_task(self._daily_push_loop())
             logger.info("定时推送任务已启动")
