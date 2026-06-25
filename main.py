@@ -15,8 +15,8 @@ class AinailiHotNewsPlugin(BasePlugin):
         self.enable_auto_push = cfg.get("enable_auto_push", False)
         self.push_time = cfg.get("push_time", "08:00")
         self.push_targets = cfg.get("push_targets", [])
-        if isinstance(self.push_targets, str):
-            self.push_targets = [t.strip() for t in self.push_targets.split(",") if t.strip()]
+        if not isinstance(self.push_targets, list):
+            self.push_targets = []
         self._push_task = None
 
     async def initialize(self):
@@ -49,7 +49,6 @@ class AinailiHotNewsPlugin(BasePlugin):
                 target_hour, target_min = map(int, self.push_time.split(":"))
                 target_today = now.replace(hour=target_hour, minute=target_min, second=0, microsecond=0)
 
-                # 如果今天的目标时间已过，推到明天
                 if now >= target_today:
                     target_today += timedelta(days=1)
 
@@ -57,7 +56,6 @@ class AinailiHotNewsPlugin(BasePlugin):
                 logger.info(f"距离下次热搜推送还有 {wait_seconds:.0f} 秒")
                 await asyncio.sleep(wait_seconds)
 
-                # 到了推送时间，获取热搜并推送
                 items = self._fetch_baidu_hot()
                 if not items:
                     logger.error("获取热搜数据失败，本次推送跳过")
