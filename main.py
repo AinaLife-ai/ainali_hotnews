@@ -1,8 +1,11 @@
+import asyncio
 import requests
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from core.plugin import BasePlugin, logger, register_tool
 from core.chat.message_utils import KiraMessageBatchEvent
+from core.chat import MessageChain
+from core.chat.message_elements import Text
 
 
 class AinailiHotNewsPlugin(BasePlugin):
@@ -11,14 +14,72 @@ class AinailiHotNewsPlugin(BasePlugin):
         self.max_items = cfg.get("max_items", 15)
         self.enable_auto_push = cfg.get("enable_auto_push", False)
         self.push_time = cfg.get("push_time", "08:00")
+        self.push_targets = cfg.get("push_targets", [])
+        if isinstance(self.push_targets, str):
+            self.push_targets = [t.strip() for t in self.push_targets.split(",") if t.strip()]
+        self._push_task = None
 
     async def initialize(self):
         logger.info("爱奈丽热搜简报插件已加载，今日热点早知道~")
-        if self.enable_auto_push:
-            logger.info(f"自动推送已开启，每天早上{self.push_time}推送热搜简报")
+        if self.enable_auto_push and self.push_targets:
+            logger.info(
+                f"自动推送已开启，每天早上{self.push_time}推送热搜简报至 {len(self.push_targets)} 个目标会话"
+            )
+            self._push_task = asyncio.create_task(self._daily_push_loop())
+            logger.info("定时推送任务已启动")
+        elif self.enable_auto_push and not self.push_targets:
+            logger.warning("自动推送已开启但未配置推送目标(push_targets)，请检查插件配置")
 
     async def terminate(self):
+        if self._push_task is not None:
+            self._push_task.cancel()
+            try:
+                await self._push_task
+            except asyncio.CancelledError:
+                pass
+            self._push_task = None
+            logger.info("定时推送任务已停止")
         logger.info("爱奈丽热搜简报插件已卸载，明天见~")
+
+    async def _daily_push_loop(self):
+        """每日定时推送热搜简报"""
+        while True:
+            try:
+                now = datetime.now()
+                target_hour, target_min = map(int, self.push_time.split(":"))
+                target_today = now.replace(hour=target_hour, minute=target_min, second=0, microsecond=0)
+
+                # 如果今天的目标时间已过，推到明天
+                if now >= target_today:
+                    target_today += timedelta(days=1)
+
+                wait_seconds = (target_today - now).total_seconds()
+                logger.info(f"距离下次热搜推送还有 {wait_seconds:.0f} 秒")
+                await asyncio.sleep(wait_seconds)
+
+                # 到了推送时间，获取热搜并推送
+                items = self._fetch_baidu_hot()
+                if not items:
+                    logger.error("获取热搜数据失败，本次推送跳过")
+                    continue
+
+                brief = self._format_brief(items, "百度")
+                await self._push_to_all(brief)
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"定时推送任务异常: {e}")
+                await asyncio.sleep(60)
+
+    async def _push_to_all(self, content: str):
+        """向所有配置的目标会话推送消息"""
+        for target in self.push_targets:
+            try:
+                await self.ctx.publish_notice(target, MessageChain([Text(content)]))
+                logger.info(f"热搜简报已推送到 {target}")
+            except Exception as e:
+                logger.error(f"推送到 {target} 失败: {e}")
 
     def _fetch_baidu_hot(self):
         """从百度热搜API获取实时热点"""
