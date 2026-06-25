@@ -1,10 +1,11 @@
 import asyncio
+import time
 import requests
 import json
 from datetime import datetime, timedelta
 from core.plugin import BasePlugin, logger, register_tool
-from core.chat.message_utils import KiraMessageBatchEvent
-from core.chat import MessageChain
+from core.chat.message_utils import KiraMessageBatchEvent, KiraMessageEvent, KiraIMMessage
+from core.chat import MessageChain, User, Group
 from core.chat.message_elements import Text
 
 
@@ -71,10 +72,55 @@ class AinailiHotNewsPlugin(BasePlugin):
                 await asyncio.sleep(60)
 
     async def _push_to_all(self, content: str):
-        """向所有配置的目标会话推送消息"""
+        """向所有配置的目标会话推送消息（构造主动触发事件，让AI处理并回复）"""
+        prefix = "【系统定时任务】请把以下热搜播报给群友们：\n\n"
+        full_content = prefix + content
+
         for target in self.push_targets:
             try:
-                await self.ctx.publish_notice(target, MessageChain([Text(content)]))
+                parts = target.split(":")
+                if len(parts) != 3:
+                    logger.error(f"无效目标会话格式: {target}")
+                    continue
+                ada_name, st, sid = parts
+                ada = self.ctx.adapter_mgr.get_adapter(ada_name)
+                if not ada:
+                    logger.error(f"无法获取适配器: {ada_name}")
+                    continue
+
+                chain = MessageChain([Text(full_content)])
+                cur_time = int(time.time())
+                group = None
+                if st == "gm":
+                    group = Group(group_id=sid)
+
+                msg = KiraIMMessage(
+                    timestamp=cur_time,
+                    sender=User(
+                        user_id=sid if st == "dm" else "unknown",
+                        nickname="系统"
+                    ),
+                    group=group,
+                    message_id=f"system_push_{cur_time}",
+                    self_id=ada.config.get("self_id"),
+                    is_notice=True,
+                    is_mentioned=True,
+                    chain=chain,
+                )
+                # 补上message_str和message_repr，否则AI侧看到的是空内容
+                msg.message_str = full_content
+                msg.message_repr = " ".join(ele.repr for ele in chain)
+
+                event = KiraMessageEvent(
+                    adapter=ada.info,
+                    message_types=ada.message_types,
+                    message=msg,
+                    timestamp=cur_time,
+                )
+                # 强制触发AI处理，不走discard
+                event.trigger(force=True)
+
+                await self.ctx.event_bus.publish(event)
                 logger.info(f"热搜简报已推送到 {target}")
             except Exception as e:
                 logger.error(f"推送到 {target} 失败: {e}")
